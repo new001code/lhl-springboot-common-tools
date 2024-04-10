@@ -1,6 +1,6 @@
 # lhl-springboot-common-tools
-A springboot3+,jak21-based development kit.
-一个基于springboot3+jak21的通用工具包。
+A springboot3+,jdk21-based development kit.
+一个基于springboot3+jdk21的通用工具包。
 ## 通用的web请求和响应格式
 ### ApiRequest
 ```java
