@@ -2,7 +2,8 @@ package com.lhlwork.config;
 
 import com.lhlwork.enums.database.ExecuteTypeEnum;
 import com.lhlwork.exception.database.DatabasePropertiesBindException;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -10,12 +11,12 @@ import java.util.List;
 import java.util.Map;
 
 @ConfigurationProperties(prefix = "database-generate")
-@Data
+@Setter
+@Getter
 @Component
-public class DatabaseGenerateProperties{
-
-    private final List<Map<String, String>> list;
-
+public class DatabaseGenerateProperties {
+    private String tableLocations;
+    private List<Map<String, String>> list;
 
 
     public List<DatabaseGenerateConfig> getConfigList() throws DatabasePropertiesBindException {
@@ -34,7 +35,8 @@ public class DatabaseGenerateProperties{
 
     }
 
-    public record DatabaseGenerateConfig(String driverClassName, String url, String username, String password,
+    public record DatabaseGenerateConfig(String driverClassName, String url, String username,
+                                         String password,
                                          ExecuteTypeEnum executeType, String database) {
     }
 
