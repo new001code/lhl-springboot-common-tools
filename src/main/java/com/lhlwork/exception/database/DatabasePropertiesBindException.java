@@ -1,6 +1,6 @@
 package com.lhlwork.exception.database;
 
-public class DatabasePropertiesBindException extends Exception{
+public class DatabasePropertiesBindException extends RuntimeException{
     public DatabasePropertiesBindException(String message) {
         super(message);
     }

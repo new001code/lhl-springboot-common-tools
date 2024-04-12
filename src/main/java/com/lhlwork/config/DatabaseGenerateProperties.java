@@ -3,7 +3,6 @@ package com.lhlwork.config;
 import com.lhlwork.enums.database.ExecuteTypeEnum;
 import com.lhlwork.exception.database.DatabasePropertiesBindException;
 import lombok.Data;
-import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
