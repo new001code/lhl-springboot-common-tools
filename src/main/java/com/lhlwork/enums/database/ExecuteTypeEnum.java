@@ -4,7 +4,9 @@ import lombok.Getter;
 
 @Getter
 public enum ExecuteTypeEnum {
-    FORCE("FORCE");
+    FORCE("FORCE"),
+    FILE("FILE"),
+    UPDATE("UPDATE");
 
 
     private final String type;
