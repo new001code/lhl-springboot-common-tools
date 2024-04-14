@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 
 public interface DatabaseDDLStrategy {
@@ -21,6 +22,7 @@ public interface DatabaseDDLStrategy {
      */
     Boolean databaseExist(Statement statement, String database) throws SQLException;
 
+
     /**
      * 创建数据库
      *
@@ -29,15 +31,6 @@ public interface DatabaseDDLStrategy {
      * @throws SQLException sql exception
      */
     void createDatabase(Statement statement, String database) throws SQLException;
-
-    /**
-     * 删除数据库
-     *
-     * @param statement statement
-     * @param database  database
-     * @throws SQLException sql exception
-     */
-    void dropDatabase(Statement statement, String database) throws SQLException;
 
     /**
      * 创建表
@@ -54,6 +47,15 @@ public interface DatabaseDDLStrategy {
      * @return sql
      */
     String getCreateTablesSql(Map<Table, List<ColumnProperties>> currentTables);
+
+    /**
+     * 获取表名
+     *
+     * @param statement    statement
+     * @param schemaName database name
+     * @throws SQLException sql exception
+     */
+    Set<String> getTableNameSameSchema(Statement statement, String schemaName) throws SQLException;
 
     /**
      * 执行SQL

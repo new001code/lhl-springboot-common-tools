@@ -8,42 +8,36 @@ import org.springframework.stereotype.Component;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component("org.postgresql.Driver")
 @Slf4j
 public class DatabaseDDLPostgreSQLStrategy implements DatabaseDDLStrategy {
     @Override
     public Boolean databaseExist(Statement statement, String database) throws SQLException {
-        String query = "SELECT datname FROM pg_database WHERE datname = '%s'".formatted(database);
-        ResultSet resultSet = statement.executeQuery(query);
-        boolean existed = resultSet.next();
-        resultSet.close();
-        return existed;
+        String query = "SELECT datname FROM pg_database WHERE datname = '%s';".formatted(database);
+        try (ResultSet resultSet = statement.executeQuery(query)) {
+            return resultSet.next();
+        }
     }
+
 
     @Override
     public void createDatabase(Statement statement, String database) throws SQLException {
-        String query = "CREATE DATABASE %s".formatted(database);
+        String query = "CREATE DATABASE %s;".formatted(database);
         int executed = statement.executeUpdate(query);
         if (executed == 0) {
             log.info("create database {} success", database);
         }
     }
 
-    @Override
-    public void dropDatabase(Statement statement, String database) throws SQLException {
-        String query = "DROP DATABASE %s".formatted(database);
-        int executed = statement.executeUpdate(query);
-        if (executed == 0) {
-            log.info("drop database {} success", database);
-        }
-
-    }
 
     @Override
-    public void createTables(Statement statement, Map<Table, List<ColumnProperties>> currentTables) throws SQLException {
+    public void createTables(Statement
+                                     statement, Map<Table, List<ColumnProperties>> currentTables) throws SQLException {
         String sql = this.getCreateTablesSql(currentTables);
         log.debug(sql);
         int executed = statement.executeUpdate(sql);
@@ -57,7 +51,6 @@ public class DatabaseDDLPostgreSQLStrategy implements DatabaseDDLStrategy {
     public String getCreateTablesSql(Map<Table, List<ColumnProperties>> currentTables) {
         StringBuilder sql = new StringBuilder();
         StringBuilder comment = new StringBuilder();
-
         currentTables.forEach((table, columnProperties) -> {
             String tableName = table.tableName();
             sql.append("DROP TABLE IF EXISTS %s;".formatted(tableName));
@@ -95,18 +88,31 @@ public class DatabaseDDLPostgreSQLStrategy implements DatabaseDDLStrategy {
                 //要考虑表的创建顺序
 
                 //每个字段结束，最后一个逗号在外部取消
-                sql.append(",\n");
+                sql.append(",");
                 //注释
                 if (!"".equals(column.getComment())) {
-                    comment.append("COMMENT ON COLUMN %s.%s IS '%s';\n".formatted(tableName, column.getName(), column.getComment()));
+                    comment.append("COMMENT ON COLUMN %s.%s IS '%s';".formatted(tableName, column.getName(), column.getComment()));
                 }
             });
             //删除最后一个逗号
-            sql.delete(sql.length() - 2, sql.length() - 1);
-            sql.append(");\n");
+            sql.deleteCharAt(sql.length() - 1);
+            sql.append(");");
             sql.append(comment);
         });
         return sql.toString();
+    }
+
+    @Override
+    public Set<String> getTableNameSameSchema(Statement statement, String schemaName) throws
+            SQLException {
+        Set<String> set = new HashSet<>();
+        String query = "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s';".formatted(schemaName);
+        try (ResultSet resultSet = statement.executeQuery(query)) {
+            while (resultSet.next()) {
+                set.add(resultSet.getString("table_name"));
+            }
+        }
+        return set;
     }
 
 

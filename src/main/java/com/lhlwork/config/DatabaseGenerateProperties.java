@@ -26,19 +26,14 @@ public class DatabaseGenerateProperties {
             return;
         }
         /*
-          1.校验：driver-class-name, url, username 为必填字段。
+          1.校验：driver-class-name, url, username,database 为必填字段。
           2.校验：如果类型是file，则校验file地址不能为空。
           3. database不传，则必须使用file，否则报错
          */
         list.forEach(map -> AssertThrowExceptionUtil.getInstance().multiAssertThrowException(StringUtil::isNotEmpty, map.get("driver-class-name"), new DatabasePropertiesBindException("driver-class-name is null"))
+                .multiAssertThrowException(StringUtil::isNotEmpty, map.get("database"), new DatabasePropertiesBindException("database is null"))
                 .multiAssertThrowException(StringUtil::isNotEmpty, map.get("url"), new DatabasePropertiesBindException("url is null"))
                 .multiAssertThrowException(StringUtil::isNotEmpty, map.get("username"), new DatabasePropertiesBindException("username is null"))
-                .multiAssertThrowException((String d, String t) -> {
-                    if (StringUtil.isEmpty(d)) {
-                        return StringUtil.isNotEmpty(t) && ExecuteTypeEnum.valueOf(t.toUpperCase()) == ExecuteTypeEnum.FILE;
-                    }
-                    return true;
-                }, map.get("database"), map.get("execute-type"), new DatabasePropertiesBindException("when database is null, execute-type can only be FILE"))
                 .multiAssertThrowException((String t, String f) -> {
                     if (StringUtil.isNotEmpty(t) && ExecuteTypeEnum.valueOf(t.toUpperCase()) == ExecuteTypeEnum.FILE) {
                         return StringUtil.isNotEmpty(f);
@@ -51,7 +46,7 @@ public class DatabaseGenerateProperties {
     public List<DatabaseGenerateConfig> getConfigList() throws DatabasePropertiesBindException {
         checkMap(list);
         try {
-            return list.stream().map(map -> new DatabaseGenerateConfig(map.get("driver-class-name"), map.get("url"), map.get("username"), map.get("password"), ExecuteTypeEnum.valueOf(StringUtil.isNotEmpty(map.get("execute-type")) ? map.get("execute-type").toUpperCase() : ExecuteTypeEnum.FORCE.name()), map.get("database"), map.get("file"))).toList();
+            return list.stream().map(map -> new DatabaseGenerateConfig(map.get("driver-class-name"), map.get("url"), map.get("username"), map.get("password"), ExecuteTypeEnum.valueOf(StringUtil.isNotEmpty(map.get("execute-type")) ? map.get("execute-type").toUpperCase() : ExecuteTypeEnum.UPDATE.name()), map.get("database"), map.get("file"))).toList();
         } catch (Exception e) {
             throw new DatabasePropertiesBindException(e);
         }

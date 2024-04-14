@@ -11,6 +11,8 @@ import com.lhlwork.exception.database.TableNotFoundException;
 import com.lhlwork.tool.StringUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
+import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -27,6 +29,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -41,6 +44,43 @@ public class DatabaseDDLActuator {
     @Resource
     private Map<String, DatabaseDDLStrategy> databaseDDLStrategyMap;
 
+    @Getter
+    static class DatabaseActuatorThreadPool {
+        static class DatabaseActuatorThreadFactory implements ThreadFactory {
+            @Override
+            public Thread newThread(@NonNull Runnable r) {
+                Thread t = new Thread(r);
+                t.setName("DatabaseActuator");
+                t.setDaemon(true);
+                return t;
+            }
+        }
+
+        // 使用volatile关键字保证多线程间的可见性
+        private volatile static DatabaseDDLActuator.DatabaseActuatorThreadPool instance;
+        // 提供获取线程池的方法
+        private final ExecutorService threadPool;
+
+        // 私有化构造函数
+        private DatabaseActuatorThreadPool() {
+            threadPool = new ThreadPoolExecutor(1, 3, 1L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(100), new DatabaseDDLActuator.DatabaseActuatorThreadPool.DatabaseActuatorThreadFactory(), new ThreadPoolExecutor.DiscardOldestPolicy());
+
+        }
+
+        // 提供获取实例的方法
+        public static DatabaseActuatorThreadPool getInstance() {
+            if (instance == null) {
+                synchronized (DatabaseActuatorThreadPool.class) {
+                    if (instance == null) {
+                        instance = new DatabaseActuatorThreadPool();
+                    }
+                }
+            }
+            return instance;
+        }
+
+    }
+
     @PostConstruct
     public void execute() {
         Map<String, Connection> connectionMap = databaseConnectFactory.getConnectionMap();
@@ -54,7 +94,8 @@ public class DatabaseDDLActuator {
             return list;
         }));
         Map<Table, List<ColumnProperties>> tableList = importTable(properties.getTableLocations());
-        databaseExecute(configMap, connectionMap, tableList);
+        Boolean async = properties.getAsync();
+        databaseExecute(configMap, connectionMap, tableList, async);
     }
 
     private Map<Table, List<ColumnProperties>> importTable(String tableLocations) {
@@ -115,73 +156,67 @@ public class DatabaseDDLActuator {
      * 2.每一组中可能会有不同的数据库类型（不同的驱动），所以需要执行不同的策略。
      * 3.按url和用户名进行分组，在不同（1中的数据库连接中）连接中执行DDL。
      */
-    private void databaseExecute(Map<String, List<DatabaseGenerateProperties.DatabaseGenerateConfig>> configMap, Map<String, Connection> connectionMap, Map<Table, List<ColumnProperties>> tableList) {
+    private void databaseExecute(Map<String, List<DatabaseGenerateProperties.DatabaseGenerateConfig>> configMap, Map<String, Connection> connectionMap, Map<Table, List<ColumnProperties>> tableList, Boolean async) {
         for (Map.Entry<String, List<DatabaseGenerateProperties.DatabaseGenerateConfig>> entry : configMap.entrySet()) {
-            String key = entry.getKey();
-            List<DatabaseGenerateProperties.DatabaseGenerateConfig> configList = entry.getValue();
-            //同一个驱动、url、用户名，执行数据库操作使用同一个连接。
-            //获取数据库连接，此时的连接是public，可以执行创建数据库，删除数据库的等操作。
-            //一个针对{数据库}的Statement,
-            try (Connection connection = connectionMap.get(key); Statement statement = connection.createStatement()) {
-                //连接同一个数据库的实例，可能会创建多个database。
-                for (DatabaseGenerateProperties.DatabaseGenerateConfig config : configList) {
-                    if (databaseDDLStrategyMap.containsKey(config.driverClassName())) {
-                        DatabaseDDLStrategy databaseDDLStrategy = databaseDDLStrategyMap.get(config.driverClassName());
-                        //获取该数据库连接下，可能需要执行的表
-                        Map<Table, List<ColumnProperties>> currentTables = getCurrentTables(tableList, config);
-                        //判断当前数据库是否存在
-                        boolean databasedExist = StringUtil.isNotEmpty(config.database()) && databaseDDLStrategy.databaseExist(statement, config.database());
-                        if (!databasedExist) {
-                            /*
-                            数据库不存在分两种情况：
-                            1.没有传database的这个字段，那么就直接执行sql文件。
-                            2.传了database这个字段，那么需要先创建数据库，然后建立与这个数据库的连接，再使用这个新的连接执行sql文件。
-                             */
-                            if (StringUtil.isEmpty(config.database())) {
-                                String sql = getSqlFromFile(config.file());
-                                databaseDDLStrategy.executeByFile(statement, sql);
-                            } else {
-                                log.info("the database does not exist, create the database：{}", config.database());
-                                //创建数据库
-                                databaseDDLStrategy.createDatabase(statement, config.database());
-                                Statement tableStatement = getDatabaseStatement(config);
+            if (async) {
+                DatabaseActuatorThreadPool.getInstance().getThreadPool().execute(() -> extracted(connectionMap, tableList, entry));
+            } else {
+                extracted(connectionMap, tableList, entry);
+            }
+        }
+    }
+
+    private void extracted(Map<String, Connection> connectionMap, Map<Table, List<ColumnProperties>> tableList, Map.Entry<String, List<DatabaseGenerateProperties.DatabaseGenerateConfig>> entry) {
+        String key = entry.getKey();
+        List<DatabaseGenerateProperties.DatabaseGenerateConfig> configList = entry.getValue();
+        //同一个驱动、url、用户名，执行数据库操作使用同一个连接。
+        //获取数据库连接，此时的连接是public，可以执行创建数据库，删除数据库的等操作。
+        //一个针对{数据库}的Statement,
+        try (Connection connection = connectionMap.get(key); Statement statement = connection.createStatement()) {
+            Statement tableStatement = null;
+            //连接同一个数据库的实例，可能会创建多个database。
+            for (DatabaseGenerateProperties.DatabaseGenerateConfig config : configList) {
+                if (databaseDDLStrategyMap.containsKey(config.driverClassName())) {
+                    DatabaseDDLStrategy databaseDDLStrategy = databaseDDLStrategyMap.get(config.driverClassName());
+                    //判断当前数据库是否存在
+                    boolean databasedExist = databaseDDLStrategy.databaseExist(statement, config.database());
+                    if (!databasedExist) {
+                        log.info("the database does not exist, create the database：{}", config.database());
+                        //创建数据库
+                        databaseDDLStrategy.createDatabase(statement, config.database());
+                        tableStatement = getDatabaseStatement(config);
+                        String sql = getSqlFromFile(config.file());
+                        databaseDDLStrategy.executeByFile(tableStatement, sql);
+                    } else {
+                        switch (config.executeType()) {
+                            case FILE:
+                                //file：执行sql文件,如果类型是文件，那么就只执行sql文件，不会执行代码的内容。
+                                tableStatement = getDatabaseStatement(config);
                                 String sql = getSqlFromFile(config.file());
                                 databaseDDLStrategy.executeByFile(tableStatement, sql);
-                            }
-                        } else {
-                            log.info("the database already exists：{}", config.database());
-                            Statement tableStatement;
-                            switch (config.executeType()) {
-                                case FILE:
-                                    //file：执行sql文件,如果类型是文件，那么就只执行sql文件，不会执行代码的内容。
-                                    tableStatement = getDatabaseStatement(config);
-                                    String sql = getSqlFromFile(config.file());
-                                    databaseDDLStrategy.executeByFile(tableStatement, sql);
-                                    break;
-                                case FORCE:
-                                    //force：强制删除数据库，然后重新创建数据库；
-                                    log.info("drop the database：{}", config.database());
-                                    //删除数据库
-                                    databaseDDLStrategy.dropDatabase(statement, config.database());
-                                    //创建数据库
-                                    databaseDDLStrategy.createDatabase(statement, config.database());
-                                    //创建数据表，此时的连接中，数据库已经存在，不能使用原来的连接了，需要直接连接到具体的数据库了
-                                    //但原来的连接也不要释放，因为还要创建同一个连接下的其他数据库。
-                                    tableStatement = getDatabaseStatement(config);
+                                break;
+                            case UPDATE:
+                                tableStatement = getDatabaseStatement(config);
+                                //获取该数据库连接下，可能需要执行的表
+                                Set<String> tableSet = databaseDDLStrategy.getTableNameSameSchema(tableStatement, "public");
+                                Map<Table, List<ColumnProperties>> currentTables = getCurrentTables(tableList, config, tableSet);
+                                if (!currentTables.isEmpty()) {
                                     databaseDDLStrategy.createTables(tableStatement, currentTables);
-                                case UPDATE:
-                                    /**
-                                     *
-                                     */
-                            }
+                                }
+                                break;
                         }
-                    } else {
-                        throw new DatabaseDriverStrategyException("A Bean named %s could not be found. Check that the configuration is correct or that the interface `DatabaseDDLStrategy` is implemented!".formatted(config.driverClassName()));
                     }
+                    if (tableStatement != null) {
+                        tableStatement.close();
+                        tableStatement.getConnection().close();
+                    }
+
+                } else {
+                    throw new DatabaseDriverStrategyException("A Bean named %s could not be found. Check that the configuration is correct or that the interface `DatabaseDDLStrategy` is implemented!".formatted(config.driverClassName()));
                 }
-            } catch (SQLException | IOException e) {
-                throw new DatabaseConnectInitException(e);
             }
+        } catch (SQLException | IOException e) {
+            throw new DatabaseConnectInitException(e);
         }
     }
 
@@ -193,8 +228,11 @@ public class DatabaseDDLActuator {
         return tableConnection.createStatement();
     }
 
-    private static Map<Table, List<ColumnProperties>> getCurrentTables(Map<Table, List<ColumnProperties>> tableList, DatabaseGenerateProperties.DatabaseGenerateConfig config) {
-        return tableList.entrySet().stream().filter(table -> table.getKey().url().equals(config.url()) && table.getKey().username().equals(config.username())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    private static Map<Table, List<ColumnProperties>> getCurrentTables(Map<Table, List<ColumnProperties>> tableList, DatabaseGenerateProperties.DatabaseGenerateConfig config, Set<String> tableSet) {
+        return tableList.entrySet()
+                .stream()
+                .filter(table -> !tableSet.contains(table.getKey().tableName()))
+                .filter(table -> table.getKey().url().equals(config.url()) && table.getKey().username().equals(config.username())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private static String getSqlFromFile(String filePath) throws IOException {
@@ -202,7 +240,7 @@ public class DatabaseDDLActuator {
         BufferedReader bufferedReader = new BufferedReader(new FileReader(filePath));
         String line;
         while ((line = bufferedReader.readLine()) != null) {
-            stringBuilder.append(line).append("\n");
+            stringBuilder.append(line);
         }
         bufferedReader.close();
         return stringBuilder.toString();
