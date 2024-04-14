@@ -11,7 +11,7 @@ public enum ColumnTypeEnum {
     DECIMAL("DECIMAL"),
     CHAR("CHAR"),
     VARCHAR("VARCHAR"),
-    DATE("DATA"),
+    DATE("DATE"),
     TIME("TIME"),
     POINT("POINT"),
     POLYGON("POLYGON"),
