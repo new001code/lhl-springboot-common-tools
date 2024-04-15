@@ -13,17 +13,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-@Component("org.postgresql.Driver")
+@Component("com.mysql.cj.jdbc.Driver")
 @Slf4j
-public class DatabaseDDLPostgreSQLStrategy implements DatabaseDDLStrategy {
+public class DatabaseDDLMySQLStrategy implements DatabaseDDLStrategy {
     @Override
     public Boolean databaseExist(Statement statement, String database) throws SQLException {
-        String query = "SELECT datname FROM pg_database WHERE datname = '%s';".formatted(database);
+        String query = """
+                SELECT COUNT(*) AS DatabaseExists
+                FROM INFORMATION_SCHEMA.SCHEMATA
+                WHERE SCHEMA_NAME = '%s';
+                """.formatted(database);
         try (ResultSet resultSet = statement.executeQuery(query)) {
-            return resultSet.next();
+            if (resultSet.next()) {
+                return resultSet.getInt("DatabaseExists") == 1;
+            }
         }
+        return false;
     }
-
 
     @Override
     public void createDatabase(Statement statement, String database) throws SQLException {
@@ -34,83 +40,75 @@ public class DatabaseDDLPostgreSQLStrategy implements DatabaseDDLStrategy {
         }
     }
 
-
     @Override
-    public void createTables(Statement
-                                     statement, Map<Table, List<ColumnProperties>> currentTables) throws SQLException {
+    public void createTables(Statement statement, Map<Table, List<ColumnProperties>> currentTables) throws SQLException {
         String sql = this.getCreateTablesSql(currentTables);
         log.debug(sql);
         int executed = statement.executeUpdate(sql);
         if (executed == 0) {
             log.info("create tables success");
         }
-
     }
 
     @Override
     public String getCreateTablesSql(Map<Table, List<ColumnProperties>> currentTables) {
         StringBuilder sql = new StringBuilder();
-        StringBuilder comment = new StringBuilder();
         currentTables.forEach((table, columnProperties) -> {
             String tableName = table.tableName();
-            sql.append("DROP TABLE IF EXISTS %s;".formatted(tableName));
-            sql.append("CREATE TABLE %s(".formatted(tableName));
+            sql.append("CREATE TABLE IF NOT EXISTS %s(\n".formatted(tableName));
             columnProperties.forEach(column -> {
                 sql.append("%s ".formatted(column.getName()));
+                sql.append("%s".formatted(column.getType()));
+                // 类型考虑长度
+                if (!"".equals(column.getLength())) {
+                    sql.append("(%s) ".formatted(column.getLength()));
+                }
                 // 是否自增
                 if (column.getIsAutoIncrement()) {
-                    sql.append("SERIAL ");
-                } else {
-                    //非自增则考虑类型
-                    sql.append("%s ".formatted(column.getType()));
-                    // 类型考虑长度
-                    if (!"".equals(column.getLength())) {
-                        sql.append("(%s) ".formatted(column.getLength()));
-                    }
+                    sql.append(" AUTO_INCREMENT ");
                 }
                 //是否主键
                 if (column.getIsPrimaryKey()) {
-                    sql.append("PRIMARY KEY ");
+                    sql.append(" PRIMARY KEY ");
                 }
                 //是否可以为空
                 if (!column.getIsNullable()) {
-                    sql.append("NOT NULL ");
+                    sql.append(" NOT NULL ");
                 }
                 //是否唯一
                 if (column.getIsUnique()) {
-                    sql.append("UNIQUE ");
+                    sql.append(" UNIQUE ");
                 }
                 //如果是主键，则默认值无效
                 if (!column.getIsPrimaryKey() && !"".equals(column.getDefaultValue())) {
-                    sql.append("DEFAULT '%s' ".formatted(column.getDefaultValue()));
+                    sql.append(" DEFAULT '%s' ".formatted(column.getDefaultValue()));
                 }
-                //每个字段结束，最后一个逗号在外部取消
-                sql.append(",");
                 //注释
                 if (!"".equals(column.getComment())) {
-                    comment.append("COMMENT ON COLUMN %s.%s IS '%s';".formatted(tableName, column.getName(), column.getComment()));
+                    sql.append(" COMMENT '%s'".formatted(column.getComment()));
                 }
+                if (Character.isWhitespace(sql.charAt(sql.length() - 1))) {
+                    sql.deleteCharAt(sql.length() - 1);
+                }
+                //每个字段结束，最后一个逗号在外部取消
+                sql.append(",\n");
             });
             //删除最后一个逗号
-            sql.deleteCharAt(sql.length() - 1);
+            sql.delete(sql.length() - 2, sql.length() - 1);
             sql.append(");");
-            sql.append(comment);
         });
         return sql.toString();
     }
 
     @Override
-    public Set<String> getTableNameSameSchema(Statement statement, String schemaName) throws
-            SQLException {
+    public Set<String> getTableNameSameSchema(Statement statement, String schemaName) throws SQLException {
         Set<String> set = new HashSet<>();
-        String query = "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s';".formatted(schemaName);
+        String query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE();";
         try (ResultSet resultSet = statement.executeQuery(query)) {
             while (resultSet.next()) {
-                set.add(resultSet.getString("table_name"));
+                set.add(resultSet.getString("TABLE_NAME"));
             }
         }
         return set;
     }
-
-
 }

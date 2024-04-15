@@ -56,8 +56,7 @@ public class DatabaseDDLActuator {
             return list;
         }));
         Map<Table, List<ColumnProperties>> tableList = importTable(properties.getTableLocations());
-        Boolean async = properties.getAsync();
-        databaseExecute(configMap, databaseConnectFactory.getConnectionMap(), tableList, async);
+        databaseExecute(configMap, databaseConnectFactory.getConnectionMap(), tableList, properties.getAsync());
     }
 
     private Map<Table, List<ColumnProperties>> importTable(String tableLocations) {
@@ -162,13 +161,10 @@ public class DatabaseDDLActuator {
     private static void tableExecute(Map<Table, List<ColumnProperties>> tableList, DatabaseGenerateProperties.DatabaseGenerateConfig config, DatabaseDDLStrategy databaseDDLStrategy) throws SQLException {
 
 
-        try (Connection tableConnection = DriverManager.getConnection(config.url() + config.database(), config.username(), config.password());
-             Statement tableStatement = tableConnection.createStatement()
-        ) {
+        try (Connection tableConnection = DriverManager.getConnection(config.url() + config.database(), config.username(), config.password()); Statement tableStatement = tableConnection.createStatement()) {
             switch (config.executeType()) {
                 case FILE:
                     //file：执行sql文件,如果类型是文件，那么就只执行sql文件，不会执行代码的内容。
-
                     String sql = getSqlFromFile(config.file());
                     if (sql != null) {
                         databaseDDLStrategy.executeByFile(tableStatement, sql);
@@ -187,10 +183,7 @@ public class DatabaseDDLActuator {
     }
 
     private static Map<Table, List<ColumnProperties>> getCurrentTables(Map<Table, List<ColumnProperties>> tableList, DatabaseGenerateProperties.DatabaseGenerateConfig config, Set<String> tableSet) {
-        return tableList.entrySet()
-                .stream()
-                .filter(table -> !tableSet.contains(table.getKey().tableName()))
-                .filter(table -> table.getKey().url().equals(config.url()) && table.getKey().username().equals(config.username())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return tableList.entrySet().stream().filter(table -> !tableSet.contains(table.getKey().tableName())).filter(table -> table.getKey().url().equals(config.url()) && table.getKey().username().equals(config.username())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private static String getSqlFromFile(String filePath) {
