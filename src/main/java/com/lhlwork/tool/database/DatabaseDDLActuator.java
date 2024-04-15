@@ -109,7 +109,7 @@ public class DatabaseDDLActuator {
     }
 
     private static ColumnProperties getColumnProperties(Column column, String name, String type) {
-        return ColumnProperties.builder().name("".equals(column.name()) ? StringUtil.camelCaseToUnderscore(name) : column.name()).isPrimaryKey(column.isPrimaryKey()).foreignKey(column.foreignKey()).isAutoIncrement(column.isAutoIncrement()).isNullable(column.isNullable()).isUnique(column.isUnique()).defaultValue(column.defaultValue()).comment(column.comment()).type(type).length(column.length()).build();
+        return ColumnProperties.builder().name("".equals(column.name()) ? StringUtil.camelCaseToUnderscore(name) : column.name()).isPrimaryKey(column.isPrimaryKey()).isAutoIncrement(column.isAutoIncrement()).isNullable(column.isNullable()).isUnique(column.isUnique()).defaultValue(column.defaultValue()).comment(column.comment()).type(type).length(column.length()).build();
     }
 
     /**

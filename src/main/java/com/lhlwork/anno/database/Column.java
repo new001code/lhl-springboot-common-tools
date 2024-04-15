@@ -19,11 +19,7 @@ public @interface Column {
      * @return isPrimaryKey
      */
     boolean isPrimaryKey() default false;
-    /**
-     * 外键
-     * @return foreignKey
-     */
-    String foreignKey() default "";
+
     /**
      * 是否自增
      * @return isAutoIncrement
