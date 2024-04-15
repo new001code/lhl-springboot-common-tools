@@ -33,13 +33,7 @@ public class DatabaseGenerateProperties {
         list.forEach(map -> AssertThrowExceptionUtil.getInstance().multiAssertThrowException(StringUtil::isNotEmpty, map.get("driver-class-name"), new DatabasePropertiesBindException("driver-class-name is null"))
                 .multiAssertThrowException(StringUtil::isNotEmpty, map.get("database"), new DatabasePropertiesBindException("database is null"))
                 .multiAssertThrowException(StringUtil::isNotEmpty, map.get("url"), new DatabasePropertiesBindException("url is null"))
-                .multiAssertThrowException(StringUtil::isNotEmpty, map.get("username"), new DatabasePropertiesBindException("username is null"))
-                .multiAssertThrowException((String t, String f) -> {
-                    if (StringUtil.isNotEmpty(t) && ExecuteTypeEnum.valueOf(t.toUpperCase()) == ExecuteTypeEnum.FILE) {
-                        return StringUtil.isNotEmpty(f);
-                    }
-                    return true;
-                }, map.get("execute-type"), map.get("file"), new DatabasePropertiesBindException("when execute-type is FILE, column file is required")));
+                .multiAssertThrowException(StringUtil::isNotEmpty, map.get("username"), new DatabasePropertiesBindException("username is null")));
     }
 
 
