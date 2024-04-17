@@ -53,8 +53,7 @@ public class DatabaseDDLPostgreSQLStrategy implements DatabaseDDLStrategy {
         StringBuilder comment = new StringBuilder();
         currentTables.forEach((table, columnProperties) -> {
             String tableName = table.tableName();
-            sql.append("DROP TABLE IF EXISTS %s;".formatted(tableName));
-            sql.append("CREATE TABLE %s(".formatted(tableName));
+            sql.append("CREATE TABLE IF NOT EXISTS %s(".formatted(tableName));
             columnProperties.forEach(column -> {
                 sql.append("%s ".formatted(column.getName()));
                 // 是否自增
