@@ -193,15 +193,15 @@ database-generate: # 数据库DDL生成配置
     - driver-class-name: org.postgresql.Driver # 数据库驱动，必填
       url: jdbc:postgresql://localhost:5432/ # 数据库连接地址，必填
       database: company_test # 数据库名称，必填
-      username: postgres # 数据库用户名，必填
-      password: qwert12345 # 数据库密码
+      username: postgres_user # 数据库用户名，必填
+      password: postgres_password # 数据库密码
       execute-type: file # 执行类型，file为文件执行，update为sql执行，并且update只会去执行当前数据库中还没有的表的DDL。
-      file: /home/new001/Code/java/test.sql # 文件执行时，文件路径
+      file: /home/user/Code/java/test.sql # 文件执行时，文件路径
     - driver-class-name: com.mysql.cj.jdbc.Driver
       url: jdbc:mysql://localhost:3306/
       database: company_test
-      username: root
-      password: qwert12345
+      username: mysql-user
+      password: mysql-password
       execute-type: update
 
 logging:
