@@ -6,7 +6,7 @@ import java.io.Serializable;
 public class ApiRequest implements Serializable {
 
     @Serial
-    private static final long serialVersionUID = 1909090789789L;
+    private static final long serialVersionUID = 18908908908908L;
 
     private Integer page;
 
@@ -31,12 +31,20 @@ public class ApiRequest implements Serializable {
     private Integer offset;
 
     public Integer getLimit() {
-        this.limit = this.rows > 0 ? this.rows : 10;
+        if (this.rows == null) {
+            this.limit = 10;
+        } else {
+            this.limit = this.rows > 0 ? this.rows : 10;
+        }
         return this.limit;
     }
 
     public Integer getOffset() {
-        this.offset = this.page > 0 ? (this.page - 1) * getLimit() : 0;
+        if (this.page == null) {
+            this.offset = 0;
+        } else {
+            this.offset = this.page > 0 ? (this.page - 1) * getLimit() : 0;
+        }
         return this.offset;
     }
 
