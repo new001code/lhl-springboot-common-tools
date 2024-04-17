@@ -49,6 +49,9 @@ public class DatabaseDDLActuator {
         if (databaseConnectFactory.getConnectionMap().isEmpty()) {
             return;
         }
+        if (properties.getConfigList() == null || properties.getConfigList().isEmpty()) {
+            return;
+        }
         //按驱动-url-用户分组,可能有不同的数据库
         Map<String, List<DatabaseGenerateProperties.DatabaseGenerateConfig>> configMap = properties.getConfigList().stream().collect(Collectors.toMap(c -> "%s-%s-%s".formatted(c.driverClassName(), c.url(), c.username()), List::of, (a, b) -> {
             List<DatabaseGenerateProperties.DatabaseGenerateConfig> list = new ArrayList<>(a);

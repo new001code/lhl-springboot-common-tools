@@ -39,6 +39,9 @@ public class DatabaseGenerateProperties {
 
     public List<DatabaseGenerateConfig> getConfigList() throws DatabasePropertiesBindException {
         checkMap(list);
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
         try {
             return list.stream().map(map -> new DatabaseGenerateConfig(map.get("driver-class-name"), map.get("url"), map.get("username"), map.get("password"), ExecuteTypeEnum.valueOf(StringUtil.isNotEmpty(map.get("execute-type")) ? map.get("execute-type").toUpperCase() : ExecuteTypeEnum.UPDATE.name()), map.get("database"), map.get("file"))).toList();
         } catch (Exception e) {

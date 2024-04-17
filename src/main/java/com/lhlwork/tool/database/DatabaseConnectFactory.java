@@ -28,7 +28,7 @@ public class DatabaseConnectFactory {
 
     @PostConstruct
     public void getDatabaseConnect() {
-        if (properties != null && !properties.getConfigList().isEmpty()) {
+        if (properties != null && properties.getConfigList() != null && !properties.getConfigList().isEmpty()) {
             // 根据数据库配置生成数据库连接
             List<DatabaseGenerateProperties.DatabaseGenerateConfig> configList = properties.getConfigList();
 
