@@ -269,4 +269,50 @@ create_time DATE
 2024-04-15 16:38:14.873 [DataActuatorThread] INFO  c.l.t.d.DatabaseDDLMySQLStrategy[49] - create tables success
 ```
 
+## email
+
+添加了邮件发送功能，支持普通邮件和html邮件，可携带附件。
+
+### Email配置
+
+```yaml
+spring:
+  mail:
+    enabled: false
+    host: smtp.163.com
+    username: email@email.com
+    password: password
+    protocol: smtps
+    port: 465
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          ssl:
+            enable: false
+            required: false
+          debug: true
+```
+如果不想在配置文件中配置邮箱密码等信息，可以在启动时使用参数传入。
+
+```bash
+--spring.mail.password=your_password
+--spring.mail.username=your_username
+```
+
+```java
+import jakarta.annotation.Resource;
+
+@Resource
+private MailSenderService mailSenderService;
+
+public void test() {
+   MailDTO mailDTO = new MailDTO();
+   mailDTO.setReceiver("receiver@163.com");
+   mailDTO.setText("test");
+   mailDTO.setSubject("test");
+   mailDTO.setFiles(new File[]{new File("D:\\Code\\test.sql")});
+   mailSenderService.send(mailDTO);
+}
+```
 
